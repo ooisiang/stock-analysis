@@ -28,6 +28,28 @@ def get_annual_financial_statement(ticker, statement_type, api_key):
     return pd.DataFrame(annual_statement)
 
 
+def get_company_profile_data(ticker, api_key):
+    """
+    This functions aims to retrieve the selected company's profile data from financialmodelingprep.com like market cap,
+    industry, sector, price, beta etc.
+
+    :param ticker: (str) listed company ticker symbol
+    :param api_key: (str) user's api key in financialmodelingprep.com
+    :return: (pandas dataframe) profile data of the selected company
+    """
+
+    company_profile_response = requests.get("https://financialmodelingprep.com/api/v3/profile/{}?apikey={}"
+                                            .format(ticker, api_key))
+
+    if company_profile_response.status_code == 200:
+        company_profile = company_profile_response.json()
+    else:
+        print('Get {} company profile data failed with {}'
+              .format(ticker, company_profile_response.status_code))
+
+    return pd.DataFrame(company_profile)
+
+
 def save_data(df, database_filename, table_name):
     """
     This function aims to save a dataset into a sqlite database with the provided name.
@@ -56,6 +78,9 @@ def main():
 
         # Get Apple annual cash flow statement
         appl_annual_cash_flow_statement = get_annual_financial_statement('AAPL', 'cash-flow-statement', fmp_api_key)
+
+        # Get Apple company profile data
+        appl_profile_data = get_company_profile_data('AAPL', fmp_api_key)
 
         print('Saving data...\n    DATABASE: {}'.format(database_filepath))
         save_data(appl_annual_income_statement, database_filepath, 'AnnualIncomeStatementTable')
