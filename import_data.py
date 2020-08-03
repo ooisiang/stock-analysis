@@ -10,10 +10,14 @@ def get_annual_financial_statement(ticker, statement_type, api_key):
     This function aims to retrieve the selected annual financial statements of a selected company
     available in Financial Modeling Prep website. Depending on availability, all years will be retrieved.
 
-    :param ticker: (str) listed company ticker symbol
-    :param statement_type: (str) type of financial statement (income-, balance-sheet- or cash-flow-statement)
-    :param api_key: (str) user's api key in Financial Modeling Prep
-    :return: (pandas dataframe) annual financial statements of the selected company
+    :param ticker: listed company ticker symbol
+    :type ticker: str
+    :param statement_type: type of financial statement (income-, balance-sheet- or cash-flow-statement)
+    :type statement_type: str
+    :param api_key: user's api key in Financial Modeling Prep
+    :type api_key: str
+    :return: annual financial statements of the selected company
+    :rtype: pd.DataFrame
     """
 
     annual_statement_response = requests.get("https://financialmodelingprep.com/api/v3/{}/{}?apikey={}"
@@ -30,12 +34,15 @@ def get_annual_financial_statement(ticker, statement_type, api_key):
 
 def get_company_profile_data(ticker, api_key):
     """
-    This functions aims to retrieve the selected company's profile data from financialmodelingprep.com like market cap,
+    This function aims to retrieve the selected company's profile data from financialmodelingprep.com like market cap,
     industry, sector, price, beta etc.
 
-    :param ticker: (str) listed company ticker symbol
-    :param api_key: (str) user's api key in financialmodelingprep.com
-    :return: (pandas dataframe) profile data of the selected company
+    :param ticker: listed company ticker symbol
+    :type ticker: str
+    :param api_key: user's api key in financialmodelingprep.com
+    :type api_key: str
+    :return: profile data of the selected company
+    :rtype: pd.DataFrame
     """
 
     company_profile_response = requests.get("https://financialmodelingprep.com/api/v3/profile/{}?apikey={}"
@@ -50,13 +57,47 @@ def get_company_profile_data(ticker, api_key):
     return pd.DataFrame(company_profile)
 
 
+def collect_companies_data(tickers_list, api_key):
+    """
+    This function aims to collect all financial data from the income, balance sheet and cash flow statement of all the
+    selected companies in the tickers_list and combine them into a pandas dataset.
+    Companies' profile data will be collected here and will be returned as a second pandas dataset
+
+    :param tickers_list: a list of tickers that should be collected
+    :type tickers_list: list
+    :param api_key: user's api key in financialmodelingprep.com
+    :type api_key: str
+    :return: a dataframe with financial data from the selected companies
+    :rtype: pd.DataFrame
+    :return: a dataframe with profile data from the selected companies
+    :rtype: pd.DataFrame
+    """
+
+    companies_profile_data = pd.DataFrame()
+    companies_financial_data = pd.DataFrame()
+
+    for ticker in tickers_list:
+        companies_profile_data = companies_profile_data.append(get_company_profile_data(ticker, api_key),
+                                                               ignore_index=True)
+        income_statement = get_annual_financial_statement(ticker, 'income-statement', api_key)
+        balance_sheet_statement = get_annual_financial_statement(ticker, 'balance-sheet-statement', api_key)
+        cash_flow_statement = get_annual_financial_statement(ticker, 'cash-flow-statement', api_key)
+        financial_data = pd.concat([income_statement, balance_sheet_statement, cash_flow_statement], axis=1)
+        companies_financial_data = companies_financial_data.append(financial_data, ignore_index=True)
+
+    return companies_financial_data, companies_profile_data
+
+
 def save_data(df, database_filename, table_name):
     """
     This function aims to save a dataset into a sqlite database with the provided name.
 
-    :param df: (pandas dataframe) a dataframe that consists of disaster messages and corresponding categories.
-    :param database_filename: (str) name of the sqlite database.
-    :param table_name: (str) name of the SQL table.
+    :param df: a dataframe that consists of disaster messages and corresponding categories
+    :type df: pd.DataFrame
+    :param database_filename: name of the sqlite database
+    :type database_filename: str
+    :param table_name: name of the SQL table
+    :type table_name: str
     :return: none
     """
 
