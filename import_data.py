@@ -51,8 +51,12 @@ def get_company_profile_data(ticker, api_key):
     if company_profile_response.status_code == 200:
         company_profile = company_profile_response.json()
     else:
-        print('Get {} company profile data failed with {}'
+        raise ValueError('Get {} company profile data failed with {}'
               .format(ticker, company_profile_response.status_code))
+
+    # if company profile is empty, there might be something wrong while retrieving data. Throw ValueError.
+    if pd.DataFrame(company_profile).empty:
+        raise ValueError('No data retrieved! Check API!')
 
     return pd.DataFrame(company_profile)
 
@@ -76,14 +80,17 @@ def collect_companies_data(tickers_list, api_key):
     companies_profile_data = pd.DataFrame()
     companies_financial_data = pd.DataFrame()
 
-    for ticker in tickers_list:
-        companies_profile_data = companies_profile_data.append(get_company_profile_data(ticker, api_key),
-                                                               ignore_index=True)
-        income_statement = get_annual_financial_statement(ticker, 'income-statement', api_key)
-        balance_sheet_statement = get_annual_financial_statement(ticker, 'balance-sheet-statement', api_key)
-        cash_flow_statement = get_annual_financial_statement(ticker, 'cash-flow-statement', api_key)
-        financial_data = pd.concat([income_statement, balance_sheet_statement, cash_flow_statement], axis=1)
-        companies_financial_data = companies_financial_data.append(financial_data, ignore_index=True)
+    try:
+        for ticker in tickers_list:
+            companies_profile_data = companies_profile_data.append(get_company_profile_data(ticker, api_key),
+                                                                   ignore_index=True)
+            income_statement = get_annual_financial_statement(ticker, 'income-statement', api_key)
+            balance_sheet_statement = get_annual_financial_statement(ticker, 'balance-sheet-statement', api_key)
+            cash_flow_statement = get_annual_financial_statement(ticker, 'cash-flow-statement', api_key)
+            financial_data = pd.concat([income_statement, balance_sheet_statement, cash_flow_statement], axis=1)
+            companies_financial_data = companies_financial_data.append(financial_data, ignore_index=True)
+    except ValueError:
+        print('Data collection interrupted! Continuing rest of the process..')
 
     # remove duplicated columns which are retrieved everytime a financial statement is requested
     companies_financial_data = companies_financial_data.loc[:, ~companies_financial_data.columns.duplicated()]
