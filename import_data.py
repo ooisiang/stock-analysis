@@ -98,6 +98,39 @@ def collect_companies_data(tickers_list, api_key):
     return companies_financial_data, companies_profile_data
 
 
+def load_existing_data(database_filepath):
+    """
+    This functions aims to load and return the FinancialStatementTable and CompanyProfileTable saved in the database
+    given in database_filepath as 2 separate dataframes. If the given database or the tables do not exist,
+    this function will return empty dataframes.
+
+    :param database_filepath: file path with the name of the sql database to access
+    :type database_filepath: str
+    :return: FinancialStatementsTable and CompanyProfile as dataframes, empty dataframes if they do not exist
+    :rtype: pd.DataFrame
+    """
+    df_financial_statements = pd.DataFrame()
+    df_profile = pd.DataFrame()
+
+
+    try:
+        engine = create_engine('sqlite:///{}'.format(database_filepath))
+    except:
+        print('CompanyData.db does not exist')
+
+    try:
+        df_financial_statements = pd.read_sql_table('FinancialStatementsTable', engine)
+    except:
+        print('FinancialStatementsTable does not exist in CompanyData.db')
+
+    try:
+        df_profile = pd.read_sql_table('CompanyProfileTable', engine)
+    except:
+        print('CompanyProfileTable does not exist in CompanyData.db')
+
+    return df_financial_statements, df_profile
+
+
 def save_data(df, database_filename, table_name):
     """
     This function aims to save a dataset into a sqlite database with the provided name.
