@@ -90,7 +90,7 @@ def collect_companies_data(tickers_list, api_key):
             financial_data = pd.concat([income_statement, balance_sheet_statement, cash_flow_statement], axis=1)
             companies_financial_data = companies_financial_data.append(financial_data, ignore_index=True)
     except ValueError:
-        print('Data collection interrupted! Continuing rest of the process..')
+        print('    Data collection interrupted! Continuing rest of the process..')
 
     # remove duplicated columns which are retrieved everytime a financial statement is requested
     companies_financial_data = companies_financial_data.loc[:, ~companies_financial_data.columns.duplicated()]
@@ -116,17 +116,17 @@ def load_existing_data(database_filepath):
     try:
         engine = create_engine('sqlite:///{}'.format(database_filepath))
     except:
-        print('CompanyData.db does not exist')
+        print('    CompanyData.db does not exist')
 
     try:
         df_financial_statements = pd.read_sql_table('FinancialStatementsTable', engine)
     except:
-        print('FinancialStatementsTable does not exist in CompanyData.db')
+        print('    FinancialStatementsTable does not exist in CompanyData.db')
 
     try:
         df_profile = pd.read_sql_table('CompanyProfileTable', engine)
     except:
-        print('CompanyProfileTable does not exist in CompanyData.db')
+        print('    CompanyProfileTable does not exist in CompanyData.db')
 
     return df_financial_statements, df_profile
 
@@ -148,33 +148,77 @@ def save_data(df, database_filename, table_name):
     df.to_sql(table_name, engine, index=False, if_exists='replace')
 
 
+def update_database(companies_list, database_filepath, api_key):
+    """
+    This function aims to update the given database with the financial and profile data of the selected companies
+    in companies_list from financialmodelingprep.com. If the companies' data already exist in the given database,
+    the corresponding data will not be retrieved.
+
+    :param companies_list: list of companies whose data should be retrieved from financialmodelingprep.com
+    :type companies_list: list
+    :param database_filepath: path to the sqlite database
+    :type database_filepath: str
+    :param api_key: user's api key in financialmodelingprep.com
+    :type api_key: str
+    :return: none
+    """
+
+    missing_companies_list = []
+
+    # load companies' financial statements and profile data dataframes from the given database
+    print('    Loading database...')
+    df_financial_statements, df_profile = load_existing_data(database_filepath)
+
+    # if no data exists in the database at all, collect data for all companies in companies_list
+    if df_financial_statements.empty | df_profile.empty:
+        print('    Tables are empty. Getting data from all companies...')
+        df_financial_statements, df_profile = collect_companies_data(companies_list, api_key)
+
+        # saving the updated financial statements and profile dataframes to the database
+        save_data(df_financial_statements, database_filepath, 'FinancialStatementsTable')
+        save_data(df_profile, database_filepath, 'CompanyProfileTable')
+        print('    Tables updated!')
+    # if some data exists in the database already, select only the missing ones
+    else:
+        # select the missing companies' symbols from companies_list.
+        for symbol in companies_list:
+            if symbol not in df_profile.symbol.tolist():
+                missing_companies_list.append(symbol)
+
+        if not missing_companies_list:
+            print('    No new company to be added to database. Tables are up-to-date!')
+        else:
+            # update the missing companies' financial statements and profile dataframes
+            print('    Tables are out-of-date. Getting data from the missing companies...')
+            new_financial_statements, new_profile = collect_companies_data(missing_companies_list, api_key)
+            df_financial_statements = df_financial_statements.append(new_financial_statements, ignore_index=True)
+            df_profile = df_profile.append(new_profile, ignore_index=True)
+
+            # saving the updated financial statements and profile dataframes to the database
+            save_data(df_financial_statements, database_filepath, 'FinancialStatementsTable')
+            save_data(df_profile, database_filepath, 'CompanyProfileTable')
+            print('    Tables updated!')
+
+
 def main():
-    if len(sys.argv) == 3:
+    if len(sys.argv) == 4:
 
-        database_filepath, fmp_api_key = sys.argv[1:]
+        database_filepath, companies_symbol_filepath, fmp_api_key = sys.argv[1:]
 
-        # Get Apple annual income statement
-        appl_annual_income_statement = get_annual_financial_statement('AAPL', 'income-statement', fmp_api_key)
+        # load companies symbols list
+        companies = pd.read_csv(companies_symbol_filepath, header=None).iloc[:, 0].unique()
+        companies_list = companies.tolist()
 
-        # Get Apple annual balance sheet statement
-        appl_annual_balance_sheet_statement = get_annual_financial_statement('AAPL', 'balance-sheet-statement',
-                                                                             fmp_api_key)
+        print('Updating database...\n    DATABASE: {}'.format(database_filepath))
+        update_database(companies_list, database_filepath, fmp_api_key)
 
-        # Get Apple annual cash flow statement
-        appl_annual_cash_flow_statement = get_annual_financial_statement('AAPL', 'cash-flow-statement', fmp_api_key)
-
-        # Get Apple company profile data
-        appl_profile_data = get_company_profile_data('AAPL', fmp_api_key)
-
-        print('Saving data...\n    DATABASE: {}'.format(database_filepath))
-        save_data(appl_annual_income_statement, database_filepath, 'AnnualIncomeStatementTable')
-
-        print('Data saved to database!')
+        print('Database updated!')
 
     else:
         print('Please provide the the file path and file name of the database as the first argument and '
-              'the second argument is your Financial Modeling Prep API key.'
-              '\n\nExample: python import_data.py ./data/FinancialStatements.db 01a2b3c789XYZ')
+              'the second argument is the file path to the csv file which stores the companies symbols that needs to be'
+              ' analyzed. Third argument is your Financial Modeling Prep API key.'
+              '\n\nExample: python import_data.py ./data/CompanyData.db ./data/sp-500-index.csv 01a2b3c789XYZ')
 
 
 if __name__ == '__main__':
