@@ -85,6 +85,9 @@ def collect_companies_data(tickers_list, api_key):
         financial_data = pd.concat([income_statement, balance_sheet_statement, cash_flow_statement], axis=1)
         companies_financial_data = companies_financial_data.append(financial_data, ignore_index=True)
 
+    # remove duplicated columns which are retrieved everytime a financial statement is requested
+    companies_financial_data = companies_financial_data.loc[:, ~companies_financial_data.columns.duplicated()]
+
     return companies_financial_data, companies_profile_data
 
 
