@@ -85,13 +85,18 @@ def alpha_collect_companies_data(tickers_list, api_key):
     try:
         for ticker in tickers_list:
             print('        Getting {} data...'.format(ticker))
-            companies_profile_data = companies_profile_data.append(alpha_get_company_profile_data(ticker, api_key),
-                                                                   ignore_index=True)
+            # get current company's financial and profile data
+            profile_data = alpha_get_company_profile_data(ticker, api_key)
             income_statement = alpha_get_annual_financial_statement(ticker, 'INCOME_STATEMENT', api_key)
             balance_sheet_statement = alpha_get_annual_financial_statement(ticker, 'BALANCE_SHEET', api_key)
             cash_flow_statement = alpha_get_annual_financial_statement(ticker, 'CASH_FLOW', api_key)
+
+            # concatenate data from all 3 financial statements horizontally
             financial_data = pd.concat([income_statement, balance_sheet_statement, cash_flow_statement], axis=1)
+
+            # append retrieved data of the current company to the final dataframes
             companies_financial_data = companies_financial_data.append(financial_data, ignore_index=True)
+            companies_profile_data = companies_profile_data.append(profile_data, ignore_index=True)
             print('        {} data received!'.format(ticker))
     except ValueError:
         print('Data collection interrupted! Continuing rest of the process..')
@@ -178,13 +183,20 @@ def collect_companies_data(tickers_list, api_key):
 
     try:
         for ticker in tickers_list:
-            companies_profile_data = companies_profile_data.append(get_company_profile_data(ticker, api_key),
-                                                                   ignore_index=True)
+            print('        Getting {} data...'.format(ticker))
+            # get current company's financial and profile data
+            profile_data = get_company_profile_data(ticker, api_key)
             income_statement = get_annual_financial_statement(ticker, 'income-statement', api_key)
             balance_sheet_statement = get_annual_financial_statement(ticker, 'balance-sheet-statement', api_key)
             cash_flow_statement = get_annual_financial_statement(ticker, 'cash-flow-statement', api_key)
+
+            # concatenate data from all 3 financial statements horizontally
             financial_data = pd.concat([income_statement, balance_sheet_statement, cash_flow_statement], axis=1)
+
+            # append retrieved data of the current company to the final dataframes
             companies_financial_data = companies_financial_data.append(financial_data, ignore_index=True)
+            companies_profile_data = companies_profile_data.append(profile_data, ignore_index=True)
+            print('        {} data received!'.format(ticker))
     except ValueError:
         print('    Data collection interrupted! Continuing rest of the process..')
 
