@@ -1,7 +1,9 @@
 import sys
 import requests
 import json
+import time
 import pandas as pd
+import numpy as np
 from sqlalchemy import create_engine
 
 
@@ -97,7 +99,8 @@ def alpha_collect_companies_data(tickers_list, api_key):
             # append retrieved data of the current company to the final dataframes
             companies_financial_data = companies_financial_data.append(financial_data, ignore_index=True)
             companies_profile_data = companies_profile_data.append(profile_data, ignore_index=True)
-            print('        {} data received!'.format(ticker))
+            print('        {} data received! Sleeping 60 seconds before requesting next company data...'.format(ticker))
+            time.sleep(60)
     except ValueError:
         print('Data collection interrupted! Continuing rest of the process..')
 
@@ -256,6 +259,63 @@ def save_data(df, database_filename, table_name):
     df.to_sql(table_name, engine, index=False, if_exists='replace')
 
 
+def convert_columns_to_numeric(df, exclude_cols):
+    """
+    This function aims to convert columns in a pandas dataframe from object type to numeric type, excluding the columns
+    given in the exclude_cols list.
+
+    :param df: pandas DataFrame to be processed.
+    :type df: pd.DataFrame
+    :param exclude_cols: A list of column names that should be excluded from convertung to numeric type
+    :type exclude_cols: list
+    :return: None
+    """
+
+    all_cols = df.columns.tolist()
+
+    for col in exclude_cols:
+        all_cols.remove(col)
+
+    for col in all_cols:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
+
+def replace_cell_string(df, old_str, new_str):
+    """
+    This function aims to replace a string in a cell of a pandas dataframe with a new string
+
+    :param df: pandas DataFrame to be processed
+    :type df: pd.DataFrame
+    :param old_str: original string in a cell that should be replaced
+    :type old_str: str
+    :param new_str: new string to be assigned to replace the old string
+    :type new_str: str
+    :return: None
+    """
+
+    for col in df.columns.tolist():
+        if df[col].str.contains(old_str).any():
+            df.loc[df[col] == old_str, col] = new_str
+
+
+def clean_data(df_financial_data, df_profile):
+    """
+    This function aims to perform the data cleaning/preprocessing steps on df_financial_data and df_profile returned
+    from alpha_collect_companies_data().
+
+    :param df_financial_data: First returned dataframe from alpha_collect_companies_data()
+    :type df_financial_data: pd.DataFrame
+    :param df_profile: Second returned dataframe from alpha_collect_companies_data()
+    :type df_profile: pd.DataFrame
+    :return: None
+    """
+
+    convert_columns_to_numeric(df_financial_data,
+                               ['Symbol', 'fiscalDateEnding', 'reportedCurrency'])
+
+    replace_cell_string(df_profile, 'None', np.nan)
+
+
 def update_database(companies_list, database_filepath, api_key):
     """
     This function aims to update the given database with the financial and profile data of the selected companies
@@ -282,10 +342,6 @@ def update_database(companies_list, database_filepath, api_key):
         print('    Tables are empty. Getting data from all companies...')
         df_financial_statements, df_profile = alpha_collect_companies_data(companies_list, api_key)
 
-        # saving the updated financial statements and profile dataframes to the database
-        save_data(df_financial_statements, database_filepath, 'FinancialStatementsTable')
-        save_data(df_profile, database_filepath, 'CompanyProfileTable')
-        print('    Tables updated!')
     # if some data exists in the database already, select only the missing ones
     else:
         # select the missing companies' symbols from companies_list.
@@ -302,10 +358,13 @@ def update_database(companies_list, database_filepath, api_key):
             df_financial_statements = df_financial_statements.append(new_financial_statements, ignore_index=True)
             df_profile = df_profile.append(new_profile, ignore_index=True)
 
-            # saving the updated financial statements and profile dataframes to the database
-            save_data(df_financial_statements, database_filepath, 'FinancialStatementsTable')
-            save_data(df_profile, database_filepath, 'CompanyProfileTable')
-            print('    Tables updated!')
+    # preprocess data before saving the final dataframes to the database
+    clean_data(df_financial_statements, df_profile)
+
+    # saving the updated financial statements and profile dataframes to the database
+    save_data(df_financial_statements, database_filepath, 'FinancialStatementsTable')
+    save_data(df_profile, database_filepath, 'CompanyProfileTable')
+    print('    Tables updated!')
 
 
 def main():
