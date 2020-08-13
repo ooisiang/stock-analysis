@@ -4,6 +4,7 @@ import json
 import time
 import pandas as pd
 import numpy as np
+import datetime as dt
 from sqlalchemy import create_engine
 
 
@@ -298,6 +299,20 @@ def replace_cell_string(df, old_str, new_str):
             df.loc[df[col] == old_str, col] = new_str
 
 
+def convert_str_to_datetime(df, cols):
+    """
+    This function aims to convert all strings in the selected columns of a dataframe to datetime.
+
+    :param df: pandas dataframe to be processed
+    :type df: pd.DataFrame
+    :param cols: a list of column names that should be converted to datetime
+    :type cols: list
+    :return: None
+    """
+    for col in cols:
+        df[col] = df[col].apply(lambda x: dt.datetime.strptime(x, '%Y-%m-%d') if type(x) == str else x)
+
+
 def clean_data(df_financial_data, df_profile):
     """
     This function aims to perform the data cleaning/preprocessing steps on df_financial_data and df_profile returned
@@ -314,6 +329,11 @@ def clean_data(df_financial_data, df_profile):
                                ['Symbol', 'fiscalDateEnding', 'reportedCurrency'])
 
     replace_cell_string(df_profile, 'None', np.nan)
+    # Line above has only converted string type None to [None], this line then converts [None] to np.nan
+    df_profile.replace([None], np.nan, inplace=True)
+
+    convert_str_to_datetime(df_financial_data, ['fiscalDateEnding'])
+    convert_str_to_datetime(df_profile, ['DividendDate', 'ExDividendDate', 'LastSplitDate'])
 
 
 def update_database(companies_list, database_filepath, api_key):
@@ -385,7 +405,7 @@ def main():
         print('Please provide the the file path and file name of the database as the first argument and '
               'the second argument is the file path to the csv file which stores the companies symbols that needs to be'
               ' analyzed. Third argument is your Alpha Vantage API key.'
-              '\n\nExample: python import_data.py ./data/CompanyData.db ./data/sp-500-index.csv 01a2b3c789XYZ')
+              '\n\nExample: python import_data.py ./data/CompanyData.db ./data/sp-500-tickers.csv 01a2b3c789XYZ')
 
 
 if __name__ == '__main__':
