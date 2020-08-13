@@ -295,7 +295,7 @@ def replace_cell_string(df, old_str, new_str):
     """
 
     for col in df.columns.tolist():
-        if df[col].str.contains(old_str).any():
+        if df.dtypes[col] == 'O' and df[col].str.contains(old_str).any():
             df.loc[df[col] == old_str, col] = new_str
 
 
