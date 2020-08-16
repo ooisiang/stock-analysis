@@ -66,7 +66,42 @@ def alpha_get_company_profile_data(ticker, api_key):
     return pd.DataFrame(company_profile)
 
 
-def alpha_collect_companies_data(tickers_list, api_key):
+def alpha_get_companies_stock_prices(ticker, api_key):
+    """
+    This function aims to retrieve the full stock prices of a selected company
+    available in alphavantage.co.
+
+    :param ticker: listed company ticker
+    :type ticker: str
+    :param api_key: user's api key in alphavantage.co
+    :type api_key: str
+    :return: full stock prices of the selected company
+    :rtype: pd.DataFrame
+    """
+
+    stock_price_response = requests.get("https://www.alphavantage.co/query?"
+                                        "function=TIME_SERIES_DAILY_ADJUSTED&symbol={}&outputsize=full&apikey={}"
+                                        .format(ticker, api_key))
+
+    if stock_price_response.status_code == 200:
+        df_temp = pd.DataFrame({'Symbol': []})
+        # get only the daily stock prices
+        stock_price = stock_price_response.json().get('Time Series (Daily)')
+        # concatenate the symbol column with the data
+        df_stock_price = pd.concat([df_temp, pd.DataFrame(stock_price, dtype=float).T], axis=1)
+        # assign stock ticker symbol to the Symbol column
+        df_stock_price.iloc[:, 0] = stock_price_response.json().get('Meta Data').get('2. Symbol')
+        # rename the index name to Date and assign it as a column
+        df_stock_price.index.names = ['Date']
+        df_stock_price.reset_index(level=0, inplace=True)
+    else:
+        print('Get {} stock prices failed with {}'
+              .format(ticker, stock_price_response.status_code))
+
+    return df_stock_price
+
+
+def alpha_collect_companies_data(tickers_list, api_key, option):
     """
     This function aims to collect all financial data from the income, balance sheet and cash flow statement of all the
     selected companies in the tickers_list and combine them into a pandas dataset.
@@ -76,6 +111,9 @@ def alpha_collect_companies_data(tickers_list, api_key):
     :type tickers_list: list
     :param api_key: user's api key in alphavantage.co
     :type api_key: str
+    :param option: choose the type of data to retrieve:
+    0 = only profile data; 1 = only financial data; 2 = only stock prices; 99 = all
+    :type option: bool
     :return: a dataframe with financial data from the selected companies
     :rtype: pd.DataFrame
     :return: a dataframe with profile data from the selected companies
@@ -84,30 +122,79 @@ def alpha_collect_companies_data(tickers_list, api_key):
 
     companies_profile_data = pd.DataFrame()
     companies_financial_data = pd.DataFrame()
+    companies_stock_prices = pd.DataFrame()
+    api_request_count = 0
 
     try:
         for ticker in tickers_list:
-            print('        Getting {} data...'.format(ticker))
-            # get current company's financial and profile data
-            profile_data = alpha_get_company_profile_data(ticker, api_key)
-            income_statement = alpha_get_annual_financial_statement(ticker, 'INCOME_STATEMENT', api_key)
-            balance_sheet_statement = alpha_get_annual_financial_statement(ticker, 'BALANCE_SHEET', api_key)
-            cash_flow_statement = alpha_get_annual_financial_statement(ticker, 'CASH_FLOW', api_key)
+            if option == 0:
+                print('        Getting {} profile data...'.format(ticker))
+                # get current company's profile data
+                profile_data = alpha_get_company_profile_data(ticker, api_key)
+                # increase api count
+                api_request_count += 1
 
-            # concatenate data from all 3 financial statements horizontally
-            financial_data = pd.concat([income_statement, balance_sheet_statement, cash_flow_statement], axis=1)
+                # append retrieved data of the current company to the final dataframe
+                companies_profile_data = companies_profile_data.append(profile_data, ignore_index=True)
 
-            # append retrieved data of the current company to the final dataframes
-            companies_financial_data = companies_financial_data.append(financial_data, ignore_index=True)
-            companies_profile_data = companies_profile_data.append(profile_data, ignore_index=True)
-            print('        {} data received! Sleeping 60 seconds before requesting next company data...'.format(ticker))
-            time.sleep(60)
+            if option == 1:
+                print('        Getting {} financial data...'.format(ticker))
+                # get current company's financial data
+                income_statement = alpha_get_annual_financial_statement(ticker, 'INCOME_STATEMENT', api_key)
+                balance_sheet_statement = alpha_get_annual_financial_statement(ticker, 'BALANCE_SHEET', api_key)
+                cash_flow_statement = alpha_get_annual_financial_statement(ticker, 'CASH_FLOW', api_key)
+                # increase api count
+                api_request_count += 3
+
+                # concatenate data from all 3 financial statements horizontally
+                financial_data = pd.concat([income_statement, balance_sheet_statement, cash_flow_statement], axis=1)
+
+                # append retrieved data of the current company to the final dataframe
+                companies_financial_data = companies_financial_data.append(financial_data, ignore_index=True)
+
+            if option == 2:
+                print('        Getting {} historical stock prices...'.format(ticker))
+                # get current company's historical stock prices
+                stock_prices = alpha_get_companies_stock_prices(ticker, api_key)
+                # increase api count
+                api_request_count += 1
+
+                # append retrieved data of the current company to the final dataframe
+                companies_stock_prices = companies_stock_prices.append(stock_prices)
+
+            else:
+                print('        Getting {} data...'.format(ticker))
+                # get current company's financial data, profile data and historical stock prices
+                profile_data = alpha_get_company_profile_data(ticker, api_key)
+                income_statement = alpha_get_annual_financial_statement(ticker, 'INCOME_STATEMENT', api_key)
+                balance_sheet_statement = alpha_get_annual_financial_statement(ticker, 'BALANCE_SHEET', api_key)
+                cash_flow_statement = alpha_get_annual_financial_statement(ticker, 'CASH_FLOW', api_key)
+                stock_prices = alpha_get_companies_stock_prices(ticker, api_key)
+                # increase api count
+                api_request_count += 5
+
+                # concatenate data from all 3 financial statements horizontally
+                financial_data = pd.concat([income_statement, balance_sheet_statement, cash_flow_statement], axis=1)
+
+                # append retrieved data of the current company to the final dataframes
+                companies_financial_data = companies_financial_data.append(financial_data, ignore_index=True)
+                companies_profile_data = companies_profile_data.append(profile_data, ignore_index=True)
+                companies_stock_prices = companies_stock_prices.append(stock_prices)
+
+            print('        {} data received!'.format(ticker))
+
+            if api_request_count >= 5:
+                print('Sleeping 60 seconds before requesting next company data...')
+                time.sleep(60)
+                # reset the api_request_count after sleeping for 60 sec
+                api_request_count = 0
+
     except ValueError:
         print('Data collection interrupted! Continuing rest of the process..')
 
     companies_financial_data = companies_financial_data.loc[:, ~companies_financial_data.columns.duplicated()]
 
-    return companies_financial_data, companies_profile_data
+    return companies_financial_data, companies_profile_data, companies_stock_prices
 
 
 def get_annual_financial_statement(ticker, statement_type, api_key):
@@ -157,7 +244,7 @@ def get_company_profile_data(ticker, api_key):
         company_profile = company_profile_response.json()
     else:
         raise ValueError('Get {} company profile data failed with {}'
-              .format(ticker, company_profile_response.status_code))
+                         .format(ticker, company_profile_response.status_code))
 
     # if company profile is empty, there might be something wrong while retrieving data. Throw ValueError.
     if pd.DataFrame(company_profile).empty:
@@ -212,18 +299,19 @@ def collect_companies_data(tickers_list, api_key):
 
 def load_existing_data(database_filepath):
     """
-    This functions aims to load and return the FinancialStatementTable and CompanyProfileTable saved in the database
-    given in database_filepath as 2 separate dataframes. If the given database or the tables do not exist,
-    this function will return empty dataframes.
+    This functions aims to load and return the FinancialStatementTable, CompanyProfileTable and StockPricesTable saved
+    in the database given in database_filepath as 2 separate dataframes. If the given database or the tables do not
+    exist, this function will return empty dataframes.
 
-    :param database_filepath: file path with the name of the sql database to access
+    :param database_filepath: file path with the name of the sql database to access.
     :type database_filepath: str
-    :return: FinancialStatementsTable and CompanyProfile as dataframes, empty dataframes if they do not exist
+    :return: FinancialStatementsTable, CompanyProfileTable and StockPricesTable as dataframes,
+    empty dataframes if they do not exist.
     :rtype: pd.DataFrame
     """
     df_financial_statements = pd.DataFrame()
     df_profile = pd.DataFrame()
-
+    df_stock_prices = pd.DataFrame()
 
     try:
         engine = create_engine('sqlite:///{}'.format(database_filepath))
@@ -240,7 +328,12 @@ def load_existing_data(database_filepath):
     except:
         print('    CompanyProfileTable does not exist in CompanyData.db')
 
-    return df_financial_statements, df_profile
+    try:
+        df_stock_prices = pd.read_sql_table('StockPricesTable', engine)
+    except:
+        print('    StockPricesTable does not exist in CompanyData.db')
+
+    return df_financial_statements, df_profile, df_stock_prices
 
 
 def save_data(df, database_filename, table_name):
@@ -336,11 +429,57 @@ def clean_data(df_financial_data, df_profile):
     convert_str_to_datetime(df_profile, ['DividendDate', 'ExDividendDate', 'LastSplitDate'])
 
 
-def update_database(companies_list, database_filepath, api_key):
+def update_table(companies_list, df, api_key, data_option):
     """
-    This function aims to update the given database with the financial and profile data of the selected companies
-    in companies_list from alphavantage.co. If the companies' data already exist in the given database,
+    This function aims to update the selected table. If the companies' data already exist in the table,
     the corresponding data will not be retrieved.
+    0 = CompanyProfileTable
+    1 = FinancialStatementsTable
+    2 = StockPricesTable
+
+    :param companies_list: list of companies whose data should be retrieved from alphavantage.co
+    :type companies_list: list
+    :param df: a pandas DataFrame that represents the selected table in the database.
+    :type df: pd.DataFrame
+    :param api_key: user's api key in alphavantage.co
+    :type api_key: str
+    :param data_option: an integer which specifies which table in the database should be updated.
+    :type data_option: integer
+    :return: none
+    """
+
+    missing_companies_list = []
+
+    # if no data exists in the database at all, collect data for all companies in companies_list
+    if df.empty:
+        print('---> Table is empty. Getting data from all companies...')
+        df = alpha_collect_companies_data(companies_list, api_key, data_option)[data_option]
+
+    # if some data exist in the database already, select only the missing ones
+    else:
+        # select the missing companies' symbols from companies_list.
+        for symbol in companies_list:
+            if symbol not in df.Symbol.tolist():
+                missing_companies_list.append(symbol)
+
+        if not missing_companies_list:
+            print('---> No new company to be added to database. Table is up-to-date!')
+        else:
+            # update the missing companies' data
+            print('---> Table is out-of-date. Getting data from the missing companies...')
+            new_data = alpha_collect_companies_data(missing_companies_list, api_key, data_option)[data_option]
+            df = df.append(new_data, ignore_index=True)
+
+    return df
+
+
+def update_database(companies_list, database_filepath, api_key, data_options):
+    """
+    This function aims to update the tables in the given database of the selected companies in companies_list
+    from alphavantage.co. User can select which table to update by passing a list of integers to the data_options.
+    0 = CompanyProfileTable
+    1 = FinancialStatementsTable
+    2 = StockPricesTable
 
     :param companies_list: list of companies whose data should be retrieved from alphavantage.co
     :type companies_list: list
@@ -348,43 +487,42 @@ def update_database(companies_list, database_filepath, api_key):
     :type database_filepath: str
     :param api_key: user's api key in alphavantage.co
     :type api_key: str
+    :param data_options: a list of integers which specifies which table in the database should be updated.
+    :type data_options: list
     :return: none
     """
 
-    missing_companies_list = []
+    valid_data_options = [0, 1, 2]
 
-    # load companies' financial statements and profile data dataframes from the given database
-    print('    Loading database...')
-    df_financial_statements, df_profile = load_existing_data(database_filepath)
+    if set(data_options).issubset(set(valid_data_options)):
+        # load companies' financial statements and profile data dataframes from the given database
+        print('-> Loading database...')
+        df_financial_statements, df_profile, df_stock_prices = load_existing_data(database_filepath)
 
-    # if no data exists in the database at all, collect data for all companies in companies_list
-    if df_financial_statements.empty | df_profile.empty:
-        print('    Tables are empty. Getting data from all companies...')
-        df_financial_statements, df_profile = alpha_collect_companies_data(companies_list, api_key)
+        # Update the selected tables in database
+        if 0 in data_options:
+            print('--> Updating CompanyProfileTable...')
+            df_profile = update_table(companies_list, df_profile, api_key, 0)
 
-    # if some data exists in the database already, select only the missing ones
+        if 1 in data_options:
+            print('--> Updating FinancialStatementsTable...')
+            df_financial_statements = update_table(companies_list, df_financial_statements, api_key, 1)
+
+        if 2 in data_options:
+            print('--> Updating StockPricesTable...')
+            df_stock_prices = update_table(companies_list, df_stock_prices, api_key, 2)
+
+        # preprocess data before saving the final dataframes to the database
+        clean_data(df_financial_statements, df_profile)
+
+        # save the dataframes to the database
+        save_data(df_profile, database_filepath, 'CompanyProfileTable')
+        save_data(df_financial_statements, database_filepath, 'FinancialStatementsTable')
+        save_data(df_stock_prices, database_filepath, 'StockPricesTable')
+        print('--> Tables updated!')
+
     else:
-        # select the missing companies' symbols from companies_list.
-        for symbol in companies_list:
-            if symbol not in df_profile.Symbol.tolist():
-                missing_companies_list.append(symbol)
-
-        if not missing_companies_list:
-            print('    No new company to be added to database. Tables are up-to-date!')
-        else:
-            # update the missing companies' financial statements and profile dataframes
-            print('    Tables are out-of-date. Getting data from the missing companies...')
-            new_financial_statements, new_profile = alpha_collect_companies_data(missing_companies_list, api_key)
-            df_financial_statements = df_financial_statements.append(new_financial_statements, ignore_index=True)
-            df_profile = df_profile.append(new_profile, ignore_index=True)
-
-    # preprocess data before saving the final dataframes to the database
-    clean_data(df_financial_statements, df_profile)
-
-    # saving the updated financial statements and profile dataframes to the database
-    save_data(df_financial_statements, database_filepath, 'FinancialStatementsTable')
-    save_data(df_profile, database_filepath, 'CompanyProfileTable')
-    print('    Tables updated!')
+        print('--> Err: Invalid data_options in update_database()')
 
 
 def main():
@@ -397,7 +535,7 @@ def main():
         companies_list = companies.tolist()
 
         print('Updating database...\n    DATABASE: {}'.format(database_filepath))
-        update_database(companies_list, database_filepath, api_key)
+        update_database(companies_list, database_filepath, api_key, [2])
 
         print('Database updated!')
 
