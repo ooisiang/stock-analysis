@@ -103,20 +103,28 @@ def alpha_get_companies_stock_prices(ticker, api_key):
 
 def alpha_collect_companies_data(tickers_list, api_key, option):
     """
-    This function aims to collect all financial data from the income, balance sheet and cash flow statement of all the
-    selected companies in the tickers_list and combine them into a pandas dataset.
-    Companies' profile data will be collected here and will be returned as a second pandas dataset
+    This function aims to collect data from all companies in the tickers_list. The type of data that can be collected
+    is decided by the argument, option, where:
+    0 = company's profile data only
+    1 = company's financial data only which are the data in income, balance sheet and cash flow statement
+    2 = company's historical stock prices only
+    This function returns 3 different data frames that correspond to 3 different types of collected data. Only the
+    dataframe with the chosen data type will be filled with data, the other 2 will be empty dataframes.
+    Furthermore, there is a 60 seconds delay for every 5 API requests due to the limitation of free API key from
+    alphavantage.co
 
     :param tickers_list: a list of tickers that should be collected
     :type tickers_list: list
     :param api_key: user's api key in alphavantage.co
     :type api_key: str
-    :param option: choose the type of data to retrieve:
-    0 = only profile data; 1 = only financial data; 2 = only stock prices; 99 = all
+    :param option: type of data to retrieve:
+    0 = only profile data; 1 = only financial data; 2 = only stock prices
     :type option: bool
+    :return: a dataframe with profile data from the selected companies
+    :rtype: pd.DataFrame
     :return: a dataframe with financial data from the selected companies
     :rtype: pd.DataFrame
-    :return: a dataframe with profile data from the selected companies
+    :return: a dataframe with historical stock prices from the selected companies
     :rtype: pd.DataFrame
     """
 
@@ -137,7 +145,7 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
                 # append retrieved data of the current company to the final dataframe
                 companies_profile_data = companies_profile_data.append(profile_data, ignore_index=True)
 
-            if option == 1:
+            elif option == 1:
                 print('        Getting {} financial data...'.format(ticker))
                 # get current company's financial data
                 income_statement = alpha_get_annual_financial_statement(ticker, 'INCOME_STATEMENT', api_key)
@@ -152,7 +160,7 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
                 # append retrieved data of the current company to the final dataframe
                 companies_financial_data = companies_financial_data.append(financial_data, ignore_index=True)
 
-            if option == 2:
+            elif option == 2:
                 print('        Getting {} historical stock prices...'.format(ticker))
                 # get current company's historical stock prices
                 stock_prices = alpha_get_companies_stock_prices(ticker, api_key)
@@ -160,25 +168,6 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
                 api_request_count += 1
 
                 # append retrieved data of the current company to the final dataframe
-                companies_stock_prices = companies_stock_prices.append(stock_prices)
-
-            else:
-                print('        Getting {} data...'.format(ticker))
-                # get current company's financial data, profile data and historical stock prices
-                profile_data = alpha_get_company_profile_data(ticker, api_key)
-                income_statement = alpha_get_annual_financial_statement(ticker, 'INCOME_STATEMENT', api_key)
-                balance_sheet_statement = alpha_get_annual_financial_statement(ticker, 'BALANCE_SHEET', api_key)
-                cash_flow_statement = alpha_get_annual_financial_statement(ticker, 'CASH_FLOW', api_key)
-                stock_prices = alpha_get_companies_stock_prices(ticker, api_key)
-                # increase api count
-                api_request_count += 5
-
-                # concatenate data from all 3 financial statements horizontally
-                financial_data = pd.concat([income_statement, balance_sheet_statement, cash_flow_statement], axis=1)
-
-                # append retrieved data of the current company to the final dataframes
-                companies_financial_data = companies_financial_data.append(financial_data, ignore_index=True)
-                companies_profile_data = companies_profile_data.append(profile_data, ignore_index=True)
                 companies_stock_prices = companies_stock_prices.append(stock_prices)
 
             print('        {} data received!'.format(ticker))
@@ -194,7 +183,7 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
 
     companies_financial_data = companies_financial_data.loc[:, ~companies_financial_data.columns.duplicated()]
 
-    return companies_financial_data, companies_profile_data, companies_stock_prices
+    return companies_profile_data, companies_financial_data, companies_stock_prices
 
 
 def get_annual_financial_statement(ticker, statement_type, api_key):
@@ -498,7 +487,7 @@ def update_database(companies_list, database_filepath, api_key, data_options):
         # load companies' financial statements and profile data dataframes from the given database
         print('-> Loading database...')
         df_financial_statements, df_profile, df_stock_prices = load_existing_data(database_filepath)
-
+        print(df_stock_prices)
         # Update the selected tables in database
         if 0 in data_options:
             print('--> Updating CompanyProfileTable...')
@@ -535,7 +524,7 @@ def main():
         companies_list = companies.tolist()
 
         print('Updating database...\n    DATABASE: {}'.format(database_filepath))
-        update_database(companies_list, database_filepath, api_key, [2])
+        update_database(companies_list, database_filepath, api_key, [0, 1, 2])
 
         print('Database updated!')
 
