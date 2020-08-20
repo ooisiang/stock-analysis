@@ -395,15 +395,17 @@ def convert_str_to_datetime(df, cols):
         df[col] = df[col].apply(lambda x: dt.datetime.strptime(x, '%Y-%m-%d') if type(x) == str else x)
 
 
-def clean_data(df_financial_data, df_profile):
+def clean_data(df_profile, df_financial_data, df_stock_prices):
     """
-    This function aims to perform the data cleaning/preprocessing steps on df_financial_data and df_profile returned
-    from alpha_collect_companies_data().
+    This function aims to perform the data cleaning/preprocessing steps on df_financial_data, df_profile and
+    df_stock_prices returned from alpha_collect_companies_data().
 
-    :param df_financial_data: First returned dataframe from alpha_collect_companies_data()
-    :type df_financial_data: pd.DataFrame
-    :param df_profile: Second returned dataframe from alpha_collect_companies_data()
+    :param df_profile: First returned dataframe from alpha_collect_companies_data()
     :type df_profile: pd.DataFrame
+    :param df_financial_data: Second returned dataframe from alpha_collect_companies_data()
+    :type df_financial_data: pd.DataFrame
+    :param df_stock_prices: Third returned dataframe from alpha_collect_companies_data()
+    :type df_stock_prices: pd.DataFrame
     :return: None
     """
 
@@ -416,6 +418,7 @@ def clean_data(df_financial_data, df_profile):
 
     convert_str_to_datetime(df_financial_data, ['fiscalDateEnding'])
     convert_str_to_datetime(df_profile, ['DividendDate', 'ExDividendDate', 'LastSplitDate'])
+    convert_str_to_datetime(df_stock_prices, ['Date'])
 
 
 def update_table(companies_list, df, api_key, data_option):
@@ -487,7 +490,7 @@ def update_database(companies_list, database_filepath, api_key, data_options):
         # load companies' financial statements and profile data dataframes from the given database
         print('-> Loading database...')
         df_financial_statements, df_profile, df_stock_prices = load_existing_data(database_filepath)
-        print(df_stock_prices)
+
         # Update the selected tables in database
         if 0 in data_options:
             print('--> Updating CompanyProfileTable...')
@@ -502,7 +505,8 @@ def update_database(companies_list, database_filepath, api_key, data_options):
             df_stock_prices = update_table(companies_list, df_stock_prices, api_key, 2)
 
         # preprocess data before saving the final dataframes to the database
-        clean_data(df_financial_statements, df_profile)
+        print('--> Cleaning Data...')
+        clean_data(df_profile, df_financial_statements, df_stock_prices)
 
         # save the dataframes to the database
         save_data(df_profile, database_filepath, 'CompanyProfileTable')
