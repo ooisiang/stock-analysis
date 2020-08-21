@@ -8,9 +8,9 @@ import datetime as dt
 from sqlalchemy import create_engine
 
 
-def alpha_get_annual_financial_statement(ticker, statement_type, api_key):
+def alpha_get_financial_statement(ticker, statement_type, api_key):
     """
-    This function aims to retrieve the selected annual financial statements of a selected company
+    This function aims to retrieve the selected annual and quarterly financial statements of a selected company
     available in alphavantage.co. Depending on availability, all years will be retrieved.
 
     :param ticker: listed company ticker
@@ -19,23 +19,30 @@ def alpha_get_annual_financial_statement(ticker, statement_type, api_key):
     :type statement_type: str
     :param api_key: user's api key in alphavantage.co
     :type api_key: str
-    :return: annual financial statements of the selected company
+    :return: annual and quarterly financial statements of the selected company
     :rtype: pd.DataFrame
     """
 
-    annual_statement_response = requests.get("https://www.alphavantage.co/query?function={}&symbol={}&apikey={}"
+    financial_statement_response = requests.get("https://www.alphavantage.co/query?function={}&symbol={}&apikey={}"
                                              .format(statement_type, ticker, api_key))
 
-    if annual_statement_response.status_code == 200:
-        df_temp = pd.DataFrame({'Symbol': []})
-        annual_statement = annual_statement_response.json().get('annualReports')
+    if financial_statement_response.status_code == 200:
+        df_temp = pd.DataFrame({'Symbol': [], 'type': []})
+        annual_statement = financial_statement_response.json().get('annualReports')
         df_annual_statement = pd.concat([df_temp, pd.DataFrame(annual_statement)], axis=1)
-        df_annual_statement.iloc[:, 0] = annual_statement_response.json().get('symbol')
-    else:
-        print('Get annual {} failed with {}'
-              .format(statement_type, annual_statement_response.status_code))
+        df_annual_statement.iloc[:, 1] = 'annual'
 
-    return df_annual_statement
+        quarterly_statement = financial_statement_response.json().get('quarterlyReports')
+        df_quarterly_statement = pd.concat([df_temp, pd.DataFrame(quarterly_statement)], axis=1)
+        df_quarterly_statement.iloc[:, 1] = 'quarterly'
+
+        df_financial_statement = pd.concat([df_annual_statement, df_quarterly_statement], ignore_index=True)
+        df_financial_statement.iloc[:, 0] = financial_statement_response.json().get('symbol')
+    else:
+        raise ValueError('Get annual {} failed with {}'
+              .format(statement_type, financial_statement_response.status_code))
+
+    return df_financial_statement
 
 
 def alpha_get_company_profile_data(ticker, api_key):
@@ -148,9 +155,9 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
             elif option == 1:
                 print('        Getting {} financial data...'.format(ticker))
                 # get current company's financial data
-                income_statement = alpha_get_annual_financial_statement(ticker, 'INCOME_STATEMENT', api_key)
-                balance_sheet_statement = alpha_get_annual_financial_statement(ticker, 'BALANCE_SHEET', api_key)
-                cash_flow_statement = alpha_get_annual_financial_statement(ticker, 'CASH_FLOW', api_key)
+                income_statement = alpha_get_financial_statement(ticker, 'INCOME_STATEMENT', api_key)
+                balance_sheet_statement = alpha_get_financial_statement(ticker, 'BALANCE_SHEET', api_key)
+                cash_flow_statement = alpha_get_financial_statement(ticker, 'CASH_FLOW', api_key)
                 # increase api count
                 api_request_count += 3
 
