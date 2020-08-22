@@ -417,7 +417,7 @@ def clean_data(df_profile, df_financial_data, df_stock_prices):
     """
 
     convert_columns_to_numeric(df_financial_data,
-                               ['Symbol', 'fiscalDateEnding', 'reportedCurrency'])
+                               ['Symbol', 'type', 'fiscalDateEnding', 'reportedCurrency'])
 
     replace_cell_string(df_profile, 'None', np.nan)
     # Line above has only converted string type None to [None], this line then converts [None] to np.nan
