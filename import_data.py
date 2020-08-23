@@ -1,6 +1,5 @@
 import sys
 import requests
-import json
 import time
 import pandas as pd
 import numpy as np
@@ -126,7 +125,7 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
     :type api_key: str
     :param option: type of data to retrieve:
     0 = only profile data; 1 = only financial data; 2 = only stock prices
-    :type option: bool
+    :type option: int
     :return: a dataframe with profile data from the selected companies
     :rtype: pd.DataFrame
     :return: a dataframe with financial data from the selected companies
@@ -179,7 +178,7 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
 
             print('        {} data received!'.format(ticker))
 
-            if api_request_count >= 5:
+            if api_request_count >= 3:
                 print('Sleeping 60 seconds before requesting next company data...')
                 time.sleep(60)
                 # reset the api_request_count after sleeping for 60 sec
