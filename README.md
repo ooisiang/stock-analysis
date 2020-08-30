@@ -27,6 +27,11 @@ pip install -r requirements.txt
     - To python script that cleans data and stores in database, run:
         `python import_data.py ./data/CompanyData.db ./data/sp-500-tickers.csv <alphavantage.co free API Key>`
 
+## Analysis
+
+1. BasicEPS_vs_StockPrice.ipynb
+	- This notebook shows the relationship of the companies' quarter basic EPS and their respective stock prices on the 45th and 90th day after quarter fiscal ending date.
+
 ## Authors
 
 * **Ooi Siang Tan** - *Initial work* - [ooisiang](https://github.com/ooisiang)
