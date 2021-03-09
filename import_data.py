@@ -184,7 +184,7 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
                 # reset the api_request_count after sleeping for 60 sec
                 api_request_count = 0
 
-    except ValueError:
+    except:
         print('Data collection interrupted! Continuing rest of the process..')
 
     companies_financial_data = companies_financial_data.loc[:, ~companies_financial_data.columns.duplicated()]
@@ -515,6 +515,7 @@ def update_database(companies_list, database_filepath, api_key, data_options):
         clean_data(df_profile, df_financial_statements, df_stock_prices)
 
         # save the dataframes to the database
+        print('--> Saving Data...')
         save_data(df_profile, database_filepath, 'CompanyProfileTable')
         save_data(df_financial_statements, database_filepath, 'FinancialStatementsTable')
         save_data(df_stock_prices, database_filepath, 'StockPricesTable')
