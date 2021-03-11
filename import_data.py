@@ -25,7 +25,7 @@ def alpha_get_financial_statement(ticker, statement_type, api_key):
     financial_statement_response = requests.get("https://www.alphavantage.co/query?function={}&symbol={}&apikey={}"
                                              .format(statement_type, ticker, api_key))
 
-    if financial_statement_response.status_code == 200:
+    if (financial_statement_response.status_code == 200) & ('symbol' in financial_statement_response.json()):
         df_temp = pd.DataFrame({'Symbol': [], 'type': []})
         annual_statement = financial_statement_response.json().get('annualReports')
         df_annual_statement = pd.concat([df_temp, pd.DataFrame(annual_statement)], axis=1)
@@ -38,6 +38,7 @@ def alpha_get_financial_statement(ticker, statement_type, api_key):
         df_financial_statement = pd.concat([df_annual_statement, df_quarterly_statement], ignore_index=True)
         df_financial_statement.iloc[:, 0] = financial_statement_response.json().get('symbol')
     else:
+        print('Something is wrong with the response!')
         raise ValueError('Get annual {} failed with {}'
               .format(statement_type, financial_statement_response.status_code))
 
@@ -60,9 +61,10 @@ def alpha_get_company_profile_data(ticker, api_key):
     company_profile_response = requests.get("https://www.alphavantage.co/query?function=OVERVIEW&symbol={}&apikey={}"
                                             .format(ticker, api_key))
 
-    if company_profile_response.status_code == 200:
+    if (company_profile_response.status_code == 200) & ('symbol' in company_profile_response.json()):
         company_profile = [company_profile_response.json()]
     else:
+        print('Something is wrong with the response!')
         raise ValueError('Get {} company profile data failed with {}'
                          .format(ticker, company_profile_response.status_code))
 
@@ -89,7 +91,7 @@ def alpha_get_companies_stock_prices(ticker, api_key):
                                         "function=TIME_SERIES_DAILY_ADJUSTED&symbol={}&outputsize=full&apikey={}"
                                         .format(ticker, api_key))
 
-    if stock_price_response.status_code == 200:
+    if (stock_price_response.status_code == 200)  & ('2. Symbol' in stock_price_response.json()):
         df_temp = pd.DataFrame({'Symbol': []})
         # get only the daily stock prices
         stock_price = stock_price_response.json().get('Time Series (Daily)')
@@ -101,7 +103,8 @@ def alpha_get_companies_stock_prices(ticker, api_key):
         df_stock_price.index.names = ['Date']
         df_stock_price.reset_index(level=0, inplace=True)
     else:
-        print('Get {} stock prices failed with {}'
+        print('Something is wrong with the response!')
+        raise ValueError('Get {} stock prices failed with {}'
               .format(ticker, stock_price_response.status_code))
 
     return df_stock_price
@@ -184,7 +187,7 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
                 # reset the api_request_count after sleeping for 60 sec
                 api_request_count = 0
 
-    except:
+    except ValueError:
         print('Data collection interrupted! Continuing rest of the process..')
 
     companies_financial_data = companies_financial_data.loc[:, ~companies_financial_data.columns.duplicated()]
