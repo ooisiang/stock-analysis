@@ -421,8 +421,16 @@ def clean_data(df_profile, df_financial_data, df_stock_prices):
     convert_columns_to_numeric(df_financial_data,
                                ['Symbol', 'type', 'fiscalDateEnding', 'reportedCurrency'])
 
+    # remove all rows with no symbol which are added due to unhandled error in API
+    df_financial_data.drop(df_financial_data[df_financial_data['Symbol'].apply(lambda x: x is None)].index,
+                           inplace=True)
+    df_profile.drop(df_profile[df_profile['Symbol'].apply(lambda x: x is None)].index,
+                    inplace=True)
+    df_stock_prices.drop(df_stock_prices[df_stock_prices['Symbol'].apply(lambda x: x is None)].index,
+                         inplace=True)
+
+    # convert string type None to [None] and then converts [None] to np.nan
     replace_cell_string(df_profile, 'None', np.nan)
-    # Line above has only converted string type None to [None], this line then converts [None] to np.nan
     df_profile.replace([None], np.nan, inplace=True)
 
     convert_str_to_datetime(df_financial_data, ['fiscalDateEnding'])
