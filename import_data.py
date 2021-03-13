@@ -61,7 +61,7 @@ def alpha_get_company_profile_data(ticker, api_key):
     company_profile_response = requests.get("https://www.alphavantage.co/query?function=OVERVIEW&symbol={}&apikey={}"
                                             .format(ticker, api_key))
 
-    if (company_profile_response.status_code == 200) & ('symbol' in company_profile_response.json()):
+    if (company_profile_response.status_code == 200) & ('Symbol' in company_profile_response.json()):
         company_profile = [company_profile_response.json()]
     else:
         print('Something is wrong with the response!')
