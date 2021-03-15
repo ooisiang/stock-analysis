@@ -141,11 +141,14 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
     companies_financial_data = pd.DataFrame()
     companies_stock_prices = pd.DataFrame()
     api_request_count = 0
+    api_request_count_limit = 3
 
     try:
         for ticker in tickers_list:
             if option == 0:
                 print('        Getting {} profile data...'.format(ticker))
+                # set api_request_count_limit to 5
+                api_request_count_limit = 5
                 # get current company's profile data
                 profile_data = alpha_get_company_profile_data(ticker, api_key)
                 # increase api count
@@ -156,6 +159,8 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
 
             elif option == 1:
                 print('        Getting {} financial data...'.format(ticker))
+                # set api_request_count_limit to 3
+                api_request_count_limit = 3
                 # get current company's financial data
                 income_statement = alpha_get_financial_statement(ticker, 'INCOME_STATEMENT', api_key)
                 balance_sheet_statement = alpha_get_financial_statement(ticker, 'BALANCE_SHEET', api_key)
@@ -171,6 +176,8 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
 
             elif option == 2:
                 print('        Getting {} historical stock prices...'.format(ticker))
+                # set api_request_count_limit to 5
+                api_request_count_limit = 5
                 # get current company's historical stock prices
                 stock_prices = alpha_get_companies_stock_prices(ticker, api_key)
                 # increase api count
@@ -181,7 +188,7 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
 
             print('        {} data received!'.format(ticker))
 
-            if api_request_count >= 3:
+            if api_request_count >= api_request_count_limit:
                 print('Sleeping 60 seconds before requesting next company data...')
                 time.sleep(60)
                 # reset the api_request_count after sleeping for 60 sec
