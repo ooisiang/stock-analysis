@@ -91,7 +91,7 @@ def alpha_get_companies_stock_prices(ticker, api_key):
                                         "function=TIME_SERIES_DAILY_ADJUSTED&symbol={}&outputsize=full&apikey={}"
                                         .format(ticker, api_key))
 
-    if (stock_price_response.status_code == 200)  & ('2. Symbol' in stock_price_response.json()):
+    if (stock_price_response.status_code == 200) & ('Meta Data' in stock_price_response.json()):
         df_temp = pd.DataFrame({'Symbol': []})
         # get only the daily stock prices
         stock_price = stock_price_response.json().get('Time Series (Daily)')
