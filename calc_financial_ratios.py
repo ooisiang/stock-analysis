@@ -102,19 +102,19 @@ def calc_financial_ratios(df_financial_statements, df_profile, df_stock_prices, 
 
     # get stock prices based on the 'Symbol' and 'fiscalDateEnding' in df_financial_ratios and append to it
     print('-> Getting stock prices...')
-    selected_stock_prices = get_stock_prices(df_financial_ratios, df_stock_prices, '4. close', 0)
+    selected_stock_prices = get_stock_prices(df_financial_ratios, df_stock_prices, '5. adjusted close', 0)
     df_financial_ratios.loc[:, 'StockPriceOnFiscalDateEnding'] = selected_stock_prices
     print('-> Stock prices retrieved!')
 
     # get stock prices on the day which is 45 days later than the fiscalDateEnding
     print('-> Getting stock prices (45 days later)...')
-    selected_stock_prices = get_stock_prices(df_financial_ratios, df_stock_prices, '4. close', 45)
+    selected_stock_prices = get_stock_prices(df_financial_ratios, df_stock_prices, '5. adjusted close', 45)
     df_financial_ratios.loc[:, 'StockPrice45daysLater'] = selected_stock_prices
     print('-> Stock prices retrieved!')
 
     # get stock prices on the day which is 90 days later than the fiscalDateEnding
     print('-> Getting stock prices (90 days later)...')
-    selected_stock_prices = get_stock_prices(df_financial_ratios, df_stock_prices, '4. close', 90)
+    selected_stock_prices = get_stock_prices(df_financial_ratios, df_stock_prices, '5. adjusted close', 90)
     df_financial_ratios.loc[:, 'StockPrice90daysLater'] = selected_stock_prices
     print('-> Stock prices retrieved!')
 
