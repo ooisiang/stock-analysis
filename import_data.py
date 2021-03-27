@@ -74,7 +74,7 @@ def alpha_get_company_profile_data(ticker, api_key):
     return pd.DataFrame(company_profile)
 
 
-def alpha_get_companies_stock_prices(ticker, api_key):
+def alpha_get_company_stock_prices(ticker, api_key):
     """
     This function aims to retrieve the full stock prices of a selected company
     available in alphavantage.co.
@@ -179,7 +179,7 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
                 # set api_request_count_limit to 5
                 api_request_count_limit = 5
                 # get current company's historical stock prices
-                stock_prices = alpha_get_companies_stock_prices(ticker, api_key)
+                stock_prices = alpha_get_company_stock_prices(ticker, api_key)
                 # increase api count
                 api_request_count += 1
 
