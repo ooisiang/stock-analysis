@@ -110,15 +110,53 @@ def alpha_get_company_stock_prices(ticker, api_key):
     return df_stock_price
 
 
+def alpha_get_company_earnings(ticker, api_key):
+    """
+    This function aims to retrieve the annual and quarterly earnings of a selected company
+    available in alphavantage.co.
+
+    :param ticker: listed company ticker
+    :type ticker: str
+    :param api_key: user's api key in alphavantage.co
+    :type api_key: str
+    :return: annual and quarterly earnings of the selected company
+    :rtype: pd.DataFrame
+    """
+
+    earnings_response = requests.get("https://www.alphavantage.co/query?"
+                                        "function=EARNINGS&symbol={}&apikey={}"
+                                        .format(ticker, api_key))
+
+    if (earnings_response.status_code == 200) & ('symbol' in earnings_response.json()):
+        df_temp = pd.DataFrame({'Symbol': [], 'type': []})
+        annual_earnings = earnings_response.json().get('annualEarnings')
+        df_annual_earnings = pd.concat([df_temp, pd.DataFrame(annual_earnings)], axis=1)
+        df_annual_earnings.iloc[:, 1] = 'annual'
+
+        quarterly_earnings = earnings_response.json().get('quarterlyEarnings')
+        df_quarterly_earnings = pd.concat([df_temp, pd.DataFrame(quarterly_earnings)], axis=1)
+        df_quarterly_earnings.iloc[:, 1] = 'quarterly'
+
+        df_earnings = pd.concat([df_annual_earnings, df_quarterly_earnings], ignore_index=True)
+        df_earnings.iloc[:, 0] = earnings_response.json().get('symbol')
+    else:
+        print('Something is wrong with the response!')
+        raise ValueError('Get {} earnings failed with {}'
+              .format(ticker, earnings_response.status_code))
+
+    return df_earnings
+
+
 def alpha_collect_companies_data(tickers_list, api_key, option):
     """
     This function aims to collect data from all companies in the tickers_list. The type of data that can be collected
     is decided by the argument, option, where:
     0 = company's profile data only
-    1 = company's financial data only which are the data in income, balance sheet and cash flow statement
+    1 = company's annual and quarterly financial data only which are in income, balance sheet and cash flow statement
     2 = company's historical stock prices only
-    This function returns 3 different data frames that correspond to 3 different types of collected data. Only the
-    dataframe with the chosen data type will be filled with data, the other 2 will be empty dataframes.
+    3 = company's annual and quarterly earnings only
+    This function returns 4 different data frames that correspond to 4 different types of collected data. Only the
+    dataframe with the chosen data type will be filled with data, the rest will be empty dataframes.
     Furthermore, there is a 60 seconds delay for every 5 API requests due to the limitation of free API key from
     alphavantage.co
 
@@ -127,19 +165,22 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
     :param api_key: user's api key in alphavantage.co
     :type api_key: str
     :param option: type of data to retrieve:
-    0 = only profile data; 1 = only financial data; 2 = only stock prices
+    0 = only profile data; 1 = only financial data; 2 = only stock prices; 3 = earnings only
     :type option: int
     :return: a dataframe with profile data from the selected companies
     :rtype: pd.DataFrame
-    :return: a dataframe with financial data from the selected companies
+    :return: a dataframe with annual and quarterly financial data from the selected companies
     :rtype: pd.DataFrame
     :return: a dataframe with historical stock prices from the selected companies
+    :rtype: pd.DataFrame
+    :return: a dataframe with annual and quarterly earnings from the selected companies
     :rtype: pd.DataFrame
     """
 
     companies_profile_data = pd.DataFrame()
     companies_financial_data = pd.DataFrame()
     companies_stock_prices = pd.DataFrame()
+    companies_earnings = pd.DataFrame()
     api_request_count = 0
     api_request_count_limit = 3
 
@@ -186,6 +227,18 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
                 # append retrieved data of the current company to the final dataframe
                 companies_stock_prices = companies_stock_prices.append(stock_prices)
 
+            elif option == 3:
+                print('        Getting {} earnings...'.format(ticker))
+                # set api_request_count_limit to 5
+                api_request_count_limit = 5
+                # get current company's earnings
+                earnings = alpha_get_company_earnings(ticker, api_key)
+                # increase api count
+                api_request_count += 1
+
+                # append retrieved data of the current company to the final dataframe
+                companies_earnings = companies_earnings.append(earnings, ignore_index=True)
+
             print('        {} data received!'.format(ticker))
 
             if api_request_count >= api_request_count_limit:
@@ -199,7 +252,7 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
 
     companies_financial_data = companies_financial_data.loc[:, ~companies_financial_data.columns.duplicated()]
 
-    return companies_profile_data, companies_financial_data, companies_stock_prices
+    return companies_profile_data, companies_financial_data, companies_stock_prices, companies_earnings
 
 
 def get_annual_financial_statement(ticker, statement_type, api_key):
@@ -304,19 +357,20 @@ def collect_companies_data(tickers_list, api_key):
 
 def load_existing_data(database_filepath):
     """
-    This functions aims to load and return the FinancialStatementTable, CompanyProfileTable and StockPricesTable saved
-    in the database given in database_filepath as 2 separate dataframes. If the given database or the tables do not
-    exist, this function will return empty dataframes.
+    This functions aims to load and return the FinancialStatementTable, CompanyProfileTable, StockPricesTable
+    and EarningsTable saved in the database given in database_filepath as separate dataframes. If the given database
+    or the tables do not exist, this function will return empty dataframes.
 
     :param database_filepath: file path with the name of the sql database to access.
     :type database_filepath: str
-    :return: FinancialStatementsTable, CompanyProfileTable and StockPricesTable as dataframes,
+    :return: FinancialStatementsTable, CompanyProfileTable, StockPricesTable, EarningsTable as dataframes,
     empty dataframes if they do not exist.
     :rtype: pd.DataFrame
     """
     df_financial_statements = pd.DataFrame()
     df_profile = pd.DataFrame()
     df_stock_prices = pd.DataFrame()
+    df_earnings = pd.DataFrame()
 
     try:
         engine = create_engine('sqlite:///{}'.format(database_filepath))
@@ -338,7 +392,12 @@ def load_existing_data(database_filepath):
     except:
         print('    StockPricesTable does not exist in CompanyData.db')
 
-    return df_financial_statements, df_profile, df_stock_prices
+    try:
+        df_earnings = pd.read_sql_table('EarningsTable', engine)
+    except:
+        print('    EarningsTable does not exist in CompanyData.db')
+
+    return df_financial_statements, df_profile, df_stock_prices, df_earnings
 
 
 def save_data(df, database_filename, table_name):
@@ -411,10 +470,10 @@ def convert_str_to_datetime(df, cols):
         df[col] = df[col].apply(lambda x: dt.datetime.strptime(x, '%Y-%m-%d') if type(x) == str else x)
 
 
-def clean_data(df_profile, df_financial_data, df_stock_prices):
+def clean_data(df_profile, df_financial_data, df_stock_prices, df_earnings):
     """
-    This function aims to perform the data cleaning/preprocessing steps on df_financial_data, df_profile and
-    df_stock_prices returned from alpha_collect_companies_data().
+    This function aims to perform the data cleaning/preprocessing steps on df_financial_data, df_profile,
+    df_stock_prices and df_earnings returned from alpha_collect_companies_data().
 
     :param df_profile: First returned dataframe from alpha_collect_companies_data()
     :type df_profile: pd.DataFrame
@@ -422,11 +481,15 @@ def clean_data(df_profile, df_financial_data, df_stock_prices):
     :type df_financial_data: pd.DataFrame
     :param df_stock_prices: Third returned dataframe from alpha_collect_companies_data()
     :type df_stock_prices: pd.DataFrame
+    :param df_earnings: Fourth returned dataframe from alpha_collect_companies_data()
+    :type df_earnings: pd.DataFrame
     :return: None
     """
 
     convert_columns_to_numeric(df_financial_data,
                                ['Symbol', 'type', 'fiscalDateEnding', 'reportedCurrency'])
+    convert_columns_to_numeric(df_earnings,
+                               ['Symbol', 'type', 'fiscalDateEnding'])
 
     # remove all rows with no symbol which are added due to unhandled error in API
     df_financial_data.drop(df_financial_data[df_financial_data['Symbol'].apply(lambda x: x is None)].index,
@@ -435,6 +498,8 @@ def clean_data(df_profile, df_financial_data, df_stock_prices):
                     inplace=True)
     df_stock_prices.drop(df_stock_prices[df_stock_prices['Symbol'].apply(lambda x: x is None)].index,
                          inplace=True)
+    df_earnings.drop(df_earnings[df_earnings['Symbol'].apply(lambda x: x is None)].index,
+                     inplace=True)
 
     # convert string type None to [None] and then converts [None] to np.nan
     replace_cell_string(df_profile, 'None', np.nan)
@@ -443,6 +508,7 @@ def clean_data(df_profile, df_financial_data, df_stock_prices):
     convert_str_to_datetime(df_financial_data, ['fiscalDateEnding'])
     convert_str_to_datetime(df_profile, ['DividendDate', 'ExDividendDate', 'LastSplitDate'])
     convert_str_to_datetime(df_stock_prices, ['Date'])
+    convert_str_to_datetime(df_earnings, ['fiscalDateEnding'])
 
 
 def update_table(companies_list, df, api_key, data_option):
@@ -452,6 +518,7 @@ def update_table(companies_list, df, api_key, data_option):
     0 = CompanyProfileTable
     1 = FinancialStatementsTable
     2 = StockPricesTable
+    3 = EarningsTable
 
     :param companies_list: list of companies whose data should be retrieved from alphavantage.co
     :type companies_list: list
@@ -496,6 +563,7 @@ def update_database(companies_list, database_filepath, api_key, data_options):
     0 = CompanyProfileTable
     1 = FinancialStatementsTable
     2 = StockPricesTable
+    3 = EarningsTable
 
     :param companies_list: list of companies whose data should be retrieved from alphavantage.co
     :type companies_list: list
@@ -508,12 +576,12 @@ def update_database(companies_list, database_filepath, api_key, data_options):
     :return: none
     """
 
-    valid_data_options = [0, 1, 2]
+    valid_data_options = [0, 1, 2, 3]
 
     if set(data_options).issubset(set(valid_data_options)):
-        # load companies' financial statements and profile data dataframes from the given database
+        # load companies' financial statements, profile, stock prices and earnings dataframes from the given database
         print('-> Loading database...')
-        df_financial_statements, df_profile, df_stock_prices = load_existing_data(database_filepath)
+        df_financial_statements, df_profile, df_stock_prices, df_earnings = load_existing_data(database_filepath)
 
         # Update the selected tables in database
         if 0 in data_options:
@@ -528,15 +596,20 @@ def update_database(companies_list, database_filepath, api_key, data_options):
             print('--> Updating StockPricesTable...')
             df_stock_prices = update_table(companies_list, df_stock_prices, api_key, 2)
 
+        if 3 in data_options:
+            print('--> Updating EarningsTable...')
+            df_earnings = update_table(companies_list, df_earnings, api_key, 3)
+
         # preprocess data before saving the final dataframes to the database
         print('--> Cleaning Data...')
-        clean_data(df_profile, df_financial_statements, df_stock_prices)
+        clean_data(df_profile, df_financial_statements, df_stock_prices, df_earnings)
 
         # save the dataframes to the database
         print('--> Saving Data...')
         save_data(df_profile, database_filepath, 'CompanyProfileTable')
         save_data(df_financial_statements, database_filepath, 'FinancialStatementsTable')
         save_data(df_stock_prices, database_filepath, 'StockPricesTable')
+        save_data(df_earnings, database_filepath, 'EarningsTable')
         print('--> Tables updated!')
 
     else:
@@ -553,7 +626,7 @@ def main():
         companies_list = companies.tolist()
 
         print('Updating database...\n    DATABASE: {}'.format(database_filepath))
-        update_database(companies_list, database_filepath, api_key, [0, 1, 2])
+        update_database(companies_list, database_filepath, api_key, [3])
 
         print('Database updated!')
 
