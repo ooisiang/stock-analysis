@@ -489,7 +489,7 @@ def clean_data(df_profile, df_financial_data, df_stock_prices, df_earnings):
     convert_columns_to_numeric(df_financial_data,
                                ['Symbol', 'type', 'fiscalDateEnding', 'reportedCurrency'])
     convert_columns_to_numeric(df_earnings,
-                               ['Symbol', 'type', 'fiscalDateEnding'])
+                               ['Symbol', 'type', 'fiscalDateEnding', 'reportedDate'])
 
     # remove all rows with no symbol which are added due to unhandled error in API
     df_financial_data.drop(df_financial_data[df_financial_data['Symbol'].apply(lambda x: x is None)].index,
@@ -508,7 +508,7 @@ def clean_data(df_profile, df_financial_data, df_stock_prices, df_earnings):
     convert_str_to_datetime(df_financial_data, ['fiscalDateEnding'])
     convert_str_to_datetime(df_profile, ['DividendDate', 'ExDividendDate', 'LastSplitDate'])
     convert_str_to_datetime(df_stock_prices, ['Date'])
-    convert_str_to_datetime(df_earnings, ['fiscalDateEnding'])
+    convert_str_to_datetime(df_earnings, ['fiscalDateEnding', 'reportedDate'])
 
 
 def update_table(companies_list, df, api_key, data_option):
