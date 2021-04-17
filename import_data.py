@@ -38,7 +38,12 @@ def alpha_get_financial_statement(ticker, statement_type, api_key):
         df_financial_statement = pd.concat([df_annual_statement, df_quarterly_statement], ignore_index=True)
         df_financial_statement.iloc[:, 0] = financial_statement_response.json().get('symbol')
     else:
-        print('Something is wrong with the response!')
+        print('Status Code:{}'.format(financial_statement_response.status_code))
+        if "Information" in financial_statement_response.json():
+            print(financial_statement_response.json().get('Information'))
+        else:
+            print('Something is wrong with the response!')
+
         raise ValueError('Get annual {} failed with {}'
               .format(statement_type, financial_statement_response.status_code))
 
@@ -64,7 +69,12 @@ def alpha_get_company_profile_data(ticker, api_key):
     if (company_profile_response.status_code == 200) & ('Symbol' in company_profile_response.json()):
         company_profile = [company_profile_response.json()]
     else:
-        print('Something is wrong with the response!')
+        print('Status Code:{}'.format(company_profile_response.status_code))
+        if "Information" in company_profile_response.json():
+            print(company_profile_response.json().get('Information'))
+        else:
+            print('Something is wrong with the response!')
+
         raise ValueError('Get {} company profile data failed with {}'
                          .format(ticker, company_profile_response.status_code))
 
@@ -103,7 +113,12 @@ def alpha_get_company_stock_prices(ticker, api_key):
         df_stock_price.index.names = ['Date']
         df_stock_price.reset_index(level=0, inplace=True)
     else:
-        print('Something is wrong with the response!')
+        print('Status Code:{}'.format(stock_price_response.status_code))
+        if "Information" in stock_price_response.json():
+            print(stock_price_response.json().get('Information'))
+        else:
+            print('Something is wrong with the response!')
+
         raise ValueError('Get {} stock prices failed with {}'
               .format(ticker, stock_price_response.status_code))
 
@@ -140,7 +155,12 @@ def alpha_get_company_earnings(ticker, api_key):
         df_earnings = pd.concat([df_annual_earnings, df_quarterly_earnings], ignore_index=True)
         df_earnings.iloc[:, 0] = earnings_response.json().get('symbol')
     else:
-        print('Something is wrong with the response!')
+        print('Status Code:{}'.format(earnings_response.status_code))
+        if "Information" in earnings_response.json():
+            print(earnings_response.json().get('Information'))
+        else:
+            print('Something is wrong with the response!')
+
         raise ValueError('Get {} earnings failed with {}'
               .format(ticker, earnings_response.status_code))
 
