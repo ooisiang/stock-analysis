@@ -506,29 +506,51 @@ def clean_data(df_profile, df_financial_data, df_stock_prices, df_earnings):
     :return: None
     """
 
-    convert_columns_to_numeric(df_financial_data,
-                               ['Symbol', 'type', 'fiscalDateEnding', 'reportedCurrency'])
-    convert_columns_to_numeric(df_earnings,
-                               ['Symbol', 'type', 'fiscalDateEnding', 'reportedDate'])
+    if not df_profile.empty:
+        # remove all rows with no symbol which are added due to unhandled error in API
+        df_profile.drop(df_profile[df_profile['Symbol'].apply(lambda x: x is None)].index,
+                        inplace=True)
 
-    # remove all rows with no symbol which are added due to unhandled error in API
-    df_financial_data.drop(df_financial_data[df_financial_data['Symbol'].apply(lambda x: x is None)].index,
-                           inplace=True)
-    df_profile.drop(df_profile[df_profile['Symbol'].apply(lambda x: x is None)].index,
-                    inplace=True)
-    df_stock_prices.drop(df_stock_prices[df_stock_prices['Symbol'].apply(lambda x: x is None)].index,
+        # convert string type None to [None] and then converts [None] to np.nan
+        replace_cell_string(df_profile, 'None', np.nan)
+        df_profile.replace([None], np.nan, inplace=True)
+
+        convert_str_to_datetime(df_profile, ['DividendDate', 'ExDividendDate', 'LastSplitDate'])
+    else:
+        print('Empty CompanyProfileTable!')
+
+    if not df_financial_data.empty:
+        convert_columns_to_numeric(df_financial_data,
+                                   ['Symbol', 'type', 'fiscalDateEnding', 'reportedCurrency'])
+
+        # remove all rows with no symbol which are added due to unhandled error in API
+        df_financial_data.drop(df_financial_data[df_financial_data['Symbol'].apply(lambda x: x is None)].index,
+                               inplace=True)
+
+        convert_str_to_datetime(df_financial_data, ['fiscalDateEnding'])
+    else:
+        print('Empty FinancialStatementsTable!')
+
+    if not df_stock_prices.empty:
+        # remove all rows with no symbol which are added due to unhandled error in API
+        df_stock_prices.drop(df_stock_prices[df_stock_prices['Symbol'].apply(lambda x: x is None)].index,
+                             inplace=True)
+
+        convert_str_to_datetime(df_stock_prices, ['Date'])
+    else:
+        print('Empty StockPricesTable!')
+
+    if not df_earnings.empty:
+        convert_columns_to_numeric(df_earnings,
+                                   ['Symbol', 'type', 'fiscalDateEnding', 'reportedDate'])
+
+        # remove all rows with no symbol which are added due to unhandled error in API
+        df_earnings.drop(df_earnings[df_earnings['Symbol'].apply(lambda x: x is None)].index,
                          inplace=True)
-    df_earnings.drop(df_earnings[df_earnings['Symbol'].apply(lambda x: x is None)].index,
-                     inplace=True)
 
-    # convert string type None to [None] and then converts [None] to np.nan
-    replace_cell_string(df_profile, 'None', np.nan)
-    df_profile.replace([None], np.nan, inplace=True)
-
-    convert_str_to_datetime(df_financial_data, ['fiscalDateEnding'])
-    convert_str_to_datetime(df_profile, ['DividendDate', 'ExDividendDate', 'LastSplitDate'])
-    convert_str_to_datetime(df_stock_prices, ['Date'])
-    convert_str_to_datetime(df_earnings, ['fiscalDateEnding', 'reportedDate'])
+        convert_str_to_datetime(df_earnings, ['fiscalDateEnding', 'reportedDate'])
+    else:
+        print('Empty EarningsTable!')
 
 
 def update_table(companies_list, df, api_key, data_option):
@@ -626,10 +648,18 @@ def update_database(companies_list, database_filepath, api_key, data_options):
 
         # save the dataframes to the database
         print('--> Saving Data...')
-        save_data(df_profile, database_filepath, 'CompanyProfileTable')
-        save_data(df_financial_statements, database_filepath, 'FinancialStatementsTable')
-        save_data(df_stock_prices, database_filepath, 'StockPricesTable')
-        save_data(df_earnings, database_filepath, 'EarningsTable')
+        if (0 in data_options) and (not df_profile.empty):
+            save_data(df_profile, database_filepath, 'CompanyProfileTable')
+
+        if 1 in data_options and (not df_financial_statements.empty):
+            save_data(df_financial_statements, database_filepath, 'FinancialStatementsTable')
+
+        if 2 in data_options and (not df_stock_prices.empty):
+            save_data(df_stock_prices, database_filepath, 'StockPricesTable')
+
+        if 3 in data_options and (not df_earnings.empty):
+            save_data(df_earnings, database_filepath, 'EarningsTable')
+
         print('--> Tables updated!')
 
     else:
