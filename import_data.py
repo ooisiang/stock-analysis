@@ -1,6 +1,8 @@
 import sys
 import requests
 import time
+import csv
+import os
 import pandas as pd
 import numpy as np
 import datetime as dt
@@ -203,6 +205,8 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
     companies_earnings = pd.DataFrame()
     api_request_count = 0
     api_request_count_limit = 3
+    last_updated_symbols = []
+    is_interrupted = 0
 
     try:
         for ticker in tickers_list:
@@ -217,6 +221,8 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
 
                 # append retrieved data of the current company to the final dataframe
                 companies_profile_data = companies_profile_data.append(profile_data, ignore_index=True)
+
+                last_updated_symbols = companies_profile_data.Symbol.unique().tolist()
 
             elif option == 1:
                 print('        Getting {} financial data...'.format(ticker))
@@ -235,6 +241,8 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
                 # append retrieved data of the current company to the final dataframe
                 companies_financial_data = companies_financial_data.append(financial_data, ignore_index=True)
 
+                last_updated_symbols = companies_financial_data.Symbol.unique().tolist()
+
             elif option == 2:
                 print('        Getting {} historical stock prices...'.format(ticker))
                 # set api_request_count_limit to 5
@@ -246,6 +254,8 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
 
                 # append retrieved data of the current company to the final dataframe
                 companies_stock_prices = companies_stock_prices.append(stock_prices)
+
+                last_updated_symbols = companies_stock_prices.Symbol.unique().tolist()
 
             elif option == 3:
                 print('        Getting {} earnings...'.format(ticker))
@@ -259,6 +269,8 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
                 # append retrieved data of the current company to the final dataframe
                 companies_earnings = companies_earnings.append(earnings, ignore_index=True)
 
+                last_updated_symbols = companies_earnings.Symbol.unique().tolist()
+
             print('        {} data received!'.format(ticker))
 
             if api_request_count >= api_request_count_limit:
@@ -269,6 +281,16 @@ def alpha_collect_companies_data(tickers_list, api_key, option):
 
     except ValueError:
         print('Data collection interrupted! Continuing rest of the process..')
+        is_interrupted = 1
+
+    if not is_interrupted:
+        last_updated_symbols = []
+        if os.path.isfile("last_updated_symbols.csv"):
+            os.remove("last_updated_symbols.csv")
+    else:
+        with open('last_updated_symbols.csv', 'w', newline='') as my_file:
+            wr = csv.writer(my_file, quoting=csv.QUOTE_ALL)
+            wr.writerow(last_updated_symbols)
 
     companies_financial_data = companies_financial_data.loc[:, ~companies_financial_data.columns.duplicated()]
 
@@ -400,22 +422,22 @@ def load_existing_data(database_filepath):
     try:
         df_financial_statements = pd.read_sql_table('FinancialStatementsTable', engine)
     except:
-        print('    FinancialStatementsTable does not exist in CompanyData.db')
+        print('FinancialStatementsTable does not exist in CompanyData.db!')
 
     try:
         df_profile = pd.read_sql_table('CompanyProfileTable', engine)
     except:
-        print('    CompanyProfileTable does not exist in CompanyData.db')
+        print('CompanyProfileTable does not exist in CompanyData.db!')
 
     try:
         df_stock_prices = pd.read_sql_table('StockPricesTable', engine)
     except:
-        print('    StockPricesTable does not exist in CompanyData.db')
+        print('StockPricesTable does not exist in CompanyData.db!')
 
     try:
         df_earnings = pd.read_sql_table('EarningsTable', engine)
     except:
-        print('    EarningsTable does not exist in CompanyData.db')
+        print('EarningsTable does not exist in CompanyData.db!')
 
     return df_financial_statements, df_profile, df_stock_prices, df_earnings
 
@@ -577,7 +599,7 @@ def update_table(companies_list, df, api_key, data_option):
 
     # if no data exists in the database at all, collect data for all companies in companies_list
     if df.empty:
-        print('---> Table is empty. Getting data from all companies...')
+        print('Table is empty. Getting data from all companies...')
         df = alpha_collect_companies_data(companies_list, api_key, data_option)[data_option]
 
     # if some data exist in the database already, select only the missing ones
@@ -588,10 +610,10 @@ def update_table(companies_list, df, api_key, data_option):
                 missing_companies_list.append(symbol)
 
         if not missing_companies_list:
-            print('---> No new company to be added to database. Table is up-to-date!')
+            print('No new company to be added to database. Table is up-to-date!')
         else:
             # update the missing companies' data
-            print('---> Table is out-of-date. Getting data from the missing companies...')
+            print('Table is out-of-date. Getting data...')
             new_data = alpha_collect_companies_data(missing_companies_list, api_key, data_option)[data_option]
             df = df.append(new_data, ignore_index=True)
 
@@ -660,10 +682,8 @@ def update_database(companies_list, database_filepath, api_key, data_options):
         if 3 in data_options and (not df_earnings.empty):
             save_data(df_earnings, database_filepath, 'EarningsTable')
 
-        print('--> Tables updated!')
-
     else:
-        print('--> Err: Invalid data_options in update_database()')
+        print('Err: Invalid data_options in update_database()')
 
 
 def main():
