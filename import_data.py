@@ -6,6 +6,7 @@ import os
 import pandas as pd
 import numpy as np
 import datetime as dt
+import openpyxl
 from sqlalchemy import create_engine
 
 
@@ -575,6 +576,58 @@ def clean_data(df_profile, df_financial_data, df_stock_prices, df_earnings):
         print('Empty EarningsTable!')
 
 
+def merge_dataframes(df_old, df_new, df_name):
+    """
+    This function aims to merge df_new and df_old which have the same columns but have different number of rows.
+    If the 2 datasets are not the same, merge statistics will be saved to <df_name>_merge_diff.xlsx.
+    This function will return the merged dataframe. If df_new is empty, df_old will be returned instead.
+    If merging or saving of merge statistics have failed, df_new will be exported to df_new.csv instead and df_old
+    will be saved back to the database.
+
+    :param df_old: The older dataframe
+    :type df_old: pd.DataFrame
+    :param df_new: The newer dataframe
+    :type df_new: pd.DataFrame
+    :param df_name: the name of the dataframe which is also the name of the csv file
+    :type df_name: str
+    :return: df_merged: The merged dataframe
+    rtype: df_merged: pd.DataFrame
+    """
+    try:
+        if not df_new.empty:
+            # merge old and new data together
+            df_merged = pd.merge(df_old, df_new, how='outer', indicator=True)
+        else:
+            print('No companies data collected at all!')
+            df_merged = df_old
+    except:
+        print('Merge dataframes failed! Saving the new dataframe to csv...')
+        df_new.to_csv('{}_new.csv'.format(df_name))
+        print('Save the old dataframe back to the database!')
+        df_merged = df_old
+
+    if df_old.equals(df_merged):
+        print('No changes in new and old dataframes.')
+    else:
+        try:
+            print('New entries or cols in {}! See {}_merge_diff.xlsx for more information'.format(df_name, df_name))
+            merge_stats = df_merged['_merge'].value_counts(dropna=False)
+
+            with pd.ExcelWriter(df_name+'_merge_diff.xlsx') as writer:
+                merge_stats.to_excel(writer, sheet_name='stats')
+                for idx in range(0, merge_stats.size):
+                    df_merged[df_merged['_merge'] == merge_stats.index[idx]].to_excel(writer,
+                                                                                      sheet_name=merge_stats.index[idx])
+
+        except:
+            print('Save {}_merge_diff.xlsx failed! Saving {}_new.csv instead...').format(df_name, df_name)
+            df_new.to_csv('{}_new.csv'.format(df_name))
+            print('Save the old dataframe back to the database!')
+            df_merged = df_old
+
+    return df_merged
+
+
 def update_table(companies_list, df, api_key, data_option):
     """
     This function aims to update the selected table. If the companies' data already exist in the table,
@@ -620,7 +673,7 @@ def update_table(companies_list, df, api_key, data_option):
     return df
 
 
-def update_database(companies_list, database_filepath, api_key, data_options):
+def update_database(companies_list, database_filepath, api_key, data_options, is_more_symbols):
     """
     This function aims to update the tables in the given database of the selected companies in companies_list
     from alphavantage.co. User can select which table to update by passing a list of integers to the data_options.
@@ -637,6 +690,8 @@ def update_database(companies_list, database_filepath, api_key, data_options):
     :type api_key: str
     :param data_options: a list of integers which specifies which table in the database should be updated.
     :type data_options: list
+    :param is_more_symbols: 0 = add new companies; 1 = update existing companies data
+    :type is_more_symbols: int
     :return: none
     """
 
@@ -646,6 +701,20 @@ def update_database(companies_list, database_filepath, api_key, data_options):
         # load companies' financial statements, profile, stock prices and earnings dataframes from the given database
         print('-> Loading database...')
         df_financial_statements, df_profile, df_stock_prices, df_earnings = load_existing_data(database_filepath)
+
+        # get a copy of the previous tables for merging purpose with the latest data from response
+        df_financial_statements_old = df_financial_statements.copy()
+        df_profile_old = df_profile.copy()
+        df_stock_prices_old = df_stock_prices.copy()
+        df_earnings_old = df_earnings.copy()
+
+        # if updating existing companies data is requested, clear dataframe to get latest data from all companies
+        if not is_more_symbols:
+            df_financial_statements = pd.DataFrame()
+            df_profile = pd.DataFrame()
+            df_stock_prices = pd.DataFrame()
+            df_earnings = pd.DataFrame()
+            print('DataFrames cleared!')
 
         # Update the selected tables in database
         if 0 in data_options:
@@ -668,18 +737,26 @@ def update_database(companies_list, database_filepath, api_key, data_options):
         print('--> Cleaning Data...')
         clean_data(df_profile, df_financial_statements, df_stock_prices, df_earnings)
 
-        # save the dataframes to the database
-        print('--> Saving Data...')
+        # merge and save the dataframes to the database
+        print('--> Merging & Saving Data...')
         if (0 in data_options) and (not df_profile.empty):
+            df_profile = merge_dataframes(df_profile_old, df_profile, 'df_profile')
             save_data(df_profile, database_filepath, 'CompanyProfileTable')
 
         if 1 in data_options and (not df_financial_statements.empty):
+            df_financial_statements = merge_dataframes(df_financial_statements_old,
+                                                       df_financial_statements,
+                                                       'df_financial_statements')
             save_data(df_financial_statements, database_filepath, 'FinancialStatementsTable')
 
         if 2 in data_options and (not df_stock_prices.empty):
+            df_stock_prices = merge_dataframes(df_stock_prices_old,
+                                               df_stock_prices,
+                                               'df_stock_prices')
             save_data(df_stock_prices, database_filepath, 'StockPricesTable')
 
         if 3 in data_options and (not df_earnings.empty):
+            df_earnings = merge_dataframes(df_earnings_old, df_earnings, 'df_earnings')
             save_data(df_earnings, database_filepath, 'EarningsTable')
 
     else:
@@ -687,16 +764,16 @@ def update_database(companies_list, database_filepath, api_key, data_options):
 
 
 def main():
-    if len(sys.argv) == 4:
+    if len(sys.argv) == 5:
 
-        database_filepath, companies_symbol_filepath, api_key = sys.argv[1:]
+        database_filepath, companies_symbol_filepath, api_key, is_more_symbols = sys.argv[1:]
 
         # load companies symbols list
         companies = pd.read_csv(companies_symbol_filepath, header=None).iloc[:, 0].unique()
         companies_list = companies.tolist()
 
         print('Updating database...\n    DATABASE: {}'.format(database_filepath))
-        update_database(companies_list, database_filepath, api_key, [3])
+        update_database(companies_list, database_filepath, api_key, [3], int(is_more_symbols))
 
         print('Database updated!')
 
